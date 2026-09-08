@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>Skin Studio — Tail & Wing Auto Grouping</title>
+</head>
+<body style="margin:0;background:#111;color:#ddd;font-family:system-ui,sans-serif">
+<div id="boot" style="height:100vh;display:grid;place-items:center;text-align:center">
+  <div>
+    <div>Loading Skin Studio…</div>
+    <small style="opacity:.65">Tail / wing0 / wing1 automatic grouping enabled</small>
+    <pre id="err" style="white-space:pre-wrap;color:#ff8080;text-align:left;max-width:90vw"></pre>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const SOURCE =
+    "https://raw.githubusercontent.com/fangkuaichaoge/fangkuaichaoge.github.io/main/skinstudio/index.html";
+
+  try {
+    const response = await fetch(SOURCE, { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not fetch Skin Studio source: HTTP " + response.status);
+    let html = await response.text();
+
+    /*
+     * Patch the actual current autoGroupObjects() implementation.
+     * We deliberately use a regex rather than matching whitespace/comments,
+     * because harmless upstream formatting changes should not break the patch.
+     */
+    const headRule = /(\belse\s+if\s*\(\s*objectName\.includes\(\s*['"]head['"]\s*\)\s*\)\s*\{\s*matchedBone\s*=\s*currentSkin\.bones\.find\(b\s*=>\s*b\.name\s*===\s*['"]head['"]\s*\)\s*;\s*\})/;
+
+    const extraRules = `
+            // Tail / wing automatic grouping
+            else if (objectName.includes('tail')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'tail');
+            }
+            else if (objectName.includes('wing0')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'wing0');
+            }
+            else if (objectName.includes('wing1')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'wing1');
+            }`;
+
+    if (!headRule.test(html)) {
+      throw new Error(
+        "Could not find Skin Studio's current autoGroupObjects() head rule. " +
+        "The upstream code structure may have changed."
+      );
+    }
+
+    html = html.replace(headRule, "$1" + extraRules);
+
+    // Make sure the patch actually landed before executing the application.
+    if (!html.includes("Tail / wing automatic grouping")) {
+      throw new Error("Patch verification failed.");
+    }
+
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (e) {
+    document.getElementById("err").textContent =
+      "\n\n" + (e && e.stack ? e.stack : String(e));
+  }
+})();
+</script>
+</body>
+</html>
