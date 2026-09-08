@@ -1,45 +1,38 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Skin Studio — Tail & Wings Auto Grouping</title>
-<style>
-html,body{margin:0;height:100%;background:#111;color:#ddd;font-family:system-ui,sans-serif}
-#loading{height:100%;display:grid;place-items:center;text-align:center}
-#loading div{max-width:520px;padding:24px}
-#loading small{opacity:.65}
-#error{white-space:pre-wrap;color:#ff8080}
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>Skin Studio — Tail & Wing Auto Grouping</title>
 </head>
-<body>
-<div id="loading">
+<body style="margin:0;background:#111;color:#ddd;font-family:system-ui,sans-serif">
+<div id="boot" style="height:100vh;display:grid;place-items:center;text-align:center">
   <div>
     <div>Loading Skin Studio…</div>
-    <small>Modified Automatic Grouping: tail → tail, wing0 → wing0, wing1 → wing1</small>
-    <div id="error"></div>
+    <small style="opacity:.65">Tail / wing0 / wing1 automatic grouping enabled</small>
+    <pre id="err" style="white-space:pre-wrap;color:#ff8080;text-align:left;max-width:90vw"></pre>
   </div>
 </div>
+
 <script>
 (async () => {
   const SOURCE =
     "https://raw.githubusercontent.com/fangkuaichaoge/fangkuaichaoge.github.io/main/skinstudio/index.html";
 
   try {
-    let html = await (await fetch(SOURCE, {cache:"no-store"})).text();
+    const response = await fetch(SOURCE, { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not fetch Skin Studio source: HTTP " + response.status);
+    let html = await response.text();
 
-    // Patch Skin Studio's existing autoGroupObjects() without changing
-    // the rest of the application.
-    const old = `            // 检测 head
-            else if (objectName.includes('head')) {
-                matchedBone = currentSkin.bones.find(b => b.name === 'head');
-            }`;
+    /*
+     * Patch the actual current autoGroupObjects() implementation.
+     * We deliberately use a regex rather than matching whitespace/comments,
+     * because harmless upstream formatting changes should not break the patch.
+     */
+    const headRule = /(\belse\s+if\s*\(\s*objectName\.includes\(\s*['"]head['"]\s*\)\s*\)\s*\{\s*matchedBone\s*=\s*currentSkin\.bones\.find\(b\s*=>\s*b\.name\s*===\s*['"]head['"]\s*\)\s*;\s*\})/;
 
-    const replacement = `            // 检测 head
-            else if (objectName.includes('head')) {
-                matchedBone = currentSkin.bones.find(b => b.name === 'head');
-            }
-            // Tail / wing support
+    const extraRules = `
+            // Tail / wing automatic grouping
             else if (objectName.includes('tail')) {
                 matchedBone = currentSkin.bones.find(b => b.name === 'tail');
             }
@@ -50,23 +43,26 @@ html,body{margin:0;height:100%;background:#111;color:#ddd;font-family:system-ui,
                 matchedBone = currentSkin.bones.find(b => b.name === 'wing1');
             }`;
 
-    if (!html.includes(old)) {
+    if (!headRule.test(html)) {
       throw new Error(
-        "The upstream Skin Studio code changed, so the automatic-grouping patch " +
-        "could not be applied safely. Open the original repository and update the patch."
+        "Could not find Skin Studio's current autoGroupObjects() head rule. " +
+        "The upstream code structure may have changed."
       );
     }
 
-    html = html.replace(old, replacement);
+    html = html.replace(headRule, "$1" + extraRules);
 
-    // Replace the loading page with the patched Skin Studio while keeping
-    // this page's normal origin, so Skin Studio's localStorage works.
+    // Make sure the patch actually landed before executing the application.
+    if (!html.includes("Tail / wing automatic grouping")) {
+      throw new Error("Patch verification failed.");
+    }
+
     document.open();
     document.write(html);
     document.close();
   } catch (e) {
-    document.getElementById("error").textContent =
-      "\n\nFailed to load Skin Studio:\n" + (e?.stack || e);
+    document.getElementById("err").textContent =
+      "\n\n" + (e && e.stack ? e.stack : String(e));
   }
 })();
 </script>
