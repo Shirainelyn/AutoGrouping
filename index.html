@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Skin Studio — Tail & Wings Auto Grouping</title>
+<style>
+html,body{margin:0;height:100%;background:#111;color:#ddd;font-family:system-ui,sans-serif}
+#loading{height:100%;display:grid;place-items:center;text-align:center}
+#loading div{max-width:520px;padding:24px}
+#loading small{opacity:.65}
+#error{white-space:pre-wrap;color:#ff8080}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div>
+    <div>Loading Skin Studio…</div>
+    <small>Modified Automatic Grouping: tail → tail, wing0 → wing0, wing1 → wing1</small>
+    <div id="error"></div>
+  </div>
+</div>
+<script>
+(async () => {
+  const SOURCE =
+    "https://raw.githubusercontent.com/fangkuaichaoge/fangkuaichaoge.github.io/main/skinstudio/index.html";
+
+  try {
+    let html = await (await fetch(SOURCE, {cache:"no-store"})).text();
+
+    // Patch Skin Studio's existing autoGroupObjects() without changing
+    // the rest of the application.
+    const old = `            // 检测 head
+            else if (objectName.includes('head')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'head');
+            }`;
+
+    const replacement = `            // 检测 head
+            else if (objectName.includes('head')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'head');
+            }
+            // Tail / wing support
+            else if (objectName.includes('tail')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'tail');
+            }
+            else if (objectName.includes('wing0')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'wing0');
+            }
+            else if (objectName.includes('wing1')) {
+                matchedBone = currentSkin.bones.find(b => b.name === 'wing1');
+            }`;
+
+    if (!html.includes(old)) {
+      throw new Error(
+        "The upstream Skin Studio code changed, so the automatic-grouping patch " +
+        "could not be applied safely. Open the original repository and update the patch."
+      );
+    }
+
+    html = html.replace(old, replacement);
+
+    // Replace the loading page with the patched Skin Studio while keeping
+    // this page's normal origin, so Skin Studio's localStorage works.
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (e) {
+    document.getElementById("error").textContent =
+      "\n\nFailed to load Skin Studio:\n" + (e?.stack || e);
+  }
+})();
+</script>
+</body>
+</html>
